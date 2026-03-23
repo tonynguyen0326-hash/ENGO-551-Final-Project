@@ -1,22 +1,22 @@
 Library,Location,Address
-Seton Library,"    (50.881189, -113.9441792)",4995 Market St Se
-Central Library,"    (51.0455118, -114.0551754)",800 3 St Se
-Quarry Park Library,"    (50.9615878, -114.0060594)",108 Quarry Park Rd Se
-Sage Hill Library,"    (51.1689113, -114.1471029)",19 Sage Hill
-Rocky Ridge Library,"    (51.157048, -114.2312213)",11300 Rocky Ridge Rd Nw
-Giuffre Family Library,"    (51.0254458, -114.0955034)",3223 14 St Sw
-Nicholls Family Library,"    (51.0404114, -114.1358227)",1421 33 St Sw
-Louise Riley Library,"    (51.0652428, -114.1038132)",1904 14 Av NW
-Village Square Library,"    (51.0753708, -113.9525833)",2623 56 St NE
-Judith Umbach Library,"    (51.1121979, -114.0633087)",6617 Centre St N
-Forest Lawn Branch,"    (51.045105, -113.9652023)",4807 8 Av SE
-Shawnessy Library,"    (50.8986015, -114.062851)",333 Shawville
-Signal Hill Library,"    (51.0181122, -114.1756439)",5994 Signal Hill
-Southwood Library,"    (50.963623, -114.0860367)",924 Southland Dr SW
-Nose Hill Library,"    (51.0960922, -114.1391296)",1530 Northmount Dr NW
-Country Hills Library,"    (51.159462, -114.0675659)",388 Country Hills Bv NE
-Crowfoot Library,"    (51.1295815, -114.1926956)",8685 Nose hill Dr NW
-Memorial Park Library,"    (51.0412674, -114.0683823)",1221 2 St SW
-Bowness Library,"    (51.0872841, -114.1830978)",7930 Bowness Rd NW
-Fish Creek Library,"    (50.9516296, -114.0603409)",11161 Bonaventure Dr SE
-Saddletowne Library,"    (51.1196709, -113.9485092)",7556 Falconridge Bl NE
+Seton Library,POINT (-113.9441792 50.881189),4995 Market St Se
+Central Library,POINT (-114.0551754 51.0455118),800 3 St Se
+Quarry Park Library,POINT (-114.0060594 50.9615878),108 Quarry Park Rd Se
+Sage Hill Library,POINT (-114.1471029 51.1689113),19 Sage Hill
+Rocky Ridge Library,POINT (-114.2312213 51.157048),11300 Rocky Ridge Rd Nw
+Giuffre Family Library,POINT (-114.0955034 51.0254458),3223 14 St Sw
+Nicholls Family Library,POINT (-114.1358227 51.0404114),1421 33 St Sw
+Louise Riley Library,POINT (-114.1038132 51.0652428),1904 14 Av NW
+Village Square Library,POINT (-113.9525833 51.0753708),2623 56 St NE
+Judith Umbach Library,POINT (-114.0633087 51.1121979),6617 Centre St N
+Forest Lawn Branch,POINT (-113.9652023 51.045105),4807 8 Av SE
+Shawnessy Library,POINT (-114.062851 50.8986015),333 Shawville
+Signal Hill Library,POINT (-114.1756439 51.0181122),5994 Signal Hill
+Southwood Library,POINT (-114.0860367 50.963623),924 Southland Dr SW
+Nose Hill Library,POINT (-114.1391296 51.0960922),1530 Northmount Dr NW
+Country Hills Library,POINT (-114.0675659 51.159462),388 Country Hills Bv NE
+Crowfoot Library,POINT (-114.1926956 51.1295815),8685 Nose hill Dr NW
+Memorial Park Library,POINT (-114.0683823 51.0412674),1221 2 St SW
+Bowness Library,POINT (-114.1830978 51.0872841),7930 Bowness Rd NW
+Fish Creek Library,POINT (-114.0603409 50.9516296),11161 Bonaventure Dr SE
+Saddletowne Library,POINT (-113.9485092 51.1196709),7556 Falconridge Bl NE
