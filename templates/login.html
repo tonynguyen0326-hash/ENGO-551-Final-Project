@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>Login</h2>
+    
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <p style="color: red; font-weight: bold;">{{ message }}</p>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+        <label>Username:</label><br>
+        <input type="text" name="username" required style="width: 100%; padding: 8px; margin: 10px 0;"><br>
+        
+        <label>Password:</label><br>
+        <input type="password" name="password" required style="width: 100%; padding: 8px; margin: 10px 0;"><br>
+        
+        <button type="submit" style="background: #000; color: #fff; padding: 10px 20px; border: none; cursor: pointer;">
+            Enter StudySphere
+        </button>
+    </form>
+    <p>New student? <a href="/register">Register here</a></p>
+{% endblock %}

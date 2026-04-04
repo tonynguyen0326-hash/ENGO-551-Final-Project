@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>Create Student Account</h2>
+    <form method="POST">
+        <label>Choose a Username:</label><br>
+        <input type="text" name="username" required style="width: 100%; padding: 8px; margin: 10px 0;"><br>
+        
+        <label>Choose a Password:</label><br>
+        <input type="password" name="password" required style="width: 100%; padding: 8px; margin: 10px 0;"><br>
+        
+        <button type="submit" style="background: #000; color: #fff; padding: 10px 20px; border: none; cursor: pointer;">
+            Create Account
+        </button>
+    </form>
+{% endblock %}
