@@ -1,26 +1,25 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h2>Login</h2>
-    
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        {% for message in messages %}
-          <p style="color: red; font-weight: bold;">{{ message }}</p>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+    <div style="max-width: 400px; margin: 50px auto; padding: 30px; border: 2px solid #ffb5e5; border-radius: 15px;"></div>
+        <h2 style="color: #d881b4;">Login</h2>
+        
+        <form method="POST" style="text-align: left;">
+            <label>Username:</label><br>
+            <input type="text" name="username" required style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px;"><br>
+            
+            <label>Password:</label><br>
+            <input type="password" name="password" required style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px;"><br>
+            
+            <button type="submit" style="background: #ffb5e5; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold;">
+                Login
+            </button>
+        </form>
 
-    <form method="POST">
-        <label>Username:</label><br>
-        <input type="text" name="username" required style="width: 100%; padding: 8px; margin: 10px 0;"><br>
-        
-        <label>Password:</label><br>
-        <input type="password" name="password" required style="width: 100%; padding: 8px; margin: 10px 0;"><br>
-        
-        <button type="submit" style="background: #000; color: #fff; padding: 10px 20px; border: none; cursor: pointer;">
-            Enter StudySphere
-        </button>
-    </form>
-    <p>New student? <a href="/register">Register here</a></p>
+        <div style="margin-top: 15px; font-size: 0.9em;">
+            <a href="{{ url_for('reset_password') }}" style="color: #777;">Forgot Password?</a>
+        </div>
+    
+        <p style="margin-top: 20px;">Don't have an account? <a href="/register" style="color: #d881b4;">Register here</a></p>
+    </div>
 {% endblock %}

@@ -39,23 +39,19 @@ def register():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Check if user exists
         if User.query.filter_by(username=username).first():
             flash('Username already exists')
             return redirect(url_for('register'))
             
-        new_user = User(
-            username=username, 
-            password_hash=generate_password_hash(password)
-        )
+        new_user = User(username=username, password_hash=generate_password_hash(password))
         db.session.add(new_user)
         db.session.commit()
-        return redirect(url_for('login'))
-    return '''<form method="POST">
-                <input name="username" placeholder="Username"><br>
-                <input name="password" type="password" placeholder="Password"><br>
-                <button type="submit">Register</button>
-              </form>'''
+        
+        # This part logs them in and skips the login screen
+        login_user(new_user)
+        return redirect(url_for('dashboard'))
+        
+    return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -70,7 +66,7 @@ def login():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return f'Welcome {current_user.username}! <a href="/logout">Logout</a>'
+    return render_template('dashboard.html')
 
 @app.route('/logout')
 def logout():
@@ -79,7 +75,29 @@ def logout():
 
 @app.route('/')
 def index():
-    return render_template('base.html')
+    # If user is already logged in, send them straight to the dashboard
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return render_template('index.html')
+
+@app.route('/reset-password', methods=['GET', 'POST'])
+def reset_password():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        new_password = request.form.get('password')
+        
+        user = User.query.filter_by(username=username).first()
+        
+        if user:
+            # Hash the new password and update the record
+            user.password_hash = generate_password_hash(new_password)
+            db.session.commit()
+            flash('Password reset successful!', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Username not found.')
+            
+    return render_template('reset_password.html')
 
 # Create the database tables
 if __name__ == '__main__':

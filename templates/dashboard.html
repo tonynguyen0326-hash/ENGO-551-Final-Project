@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; height: calc(100vh - 70px); width: 100%; overflow: hidden;">
+    
+    <div style="width: 320px; background: #fff; padding: 25px; border-right: 3px solid #ffb5e5; overflow-y: auto; box-shadow: 2px 0 5px rgba(0,0,0,0.05);">
+        <h3 style="color: #d881b4; margin-top: 0; font-size: 1.5rem;">StudySpot Filters</h3>
+        <hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;">
+        
+        <form id="filter-form">
+            <div style="margin-bottom: 20px;">
+                <p style="font-weight: bold; color: #555;">Atmosphere:</p>
+                <label style="display: block; margin: 8px 0;"><input type="checkbox" name="quiet" value="true"> Quiet Zone</label>
+                <label style="display: block; margin: 8px 0;"><input type="checkbox" name="outlets" value="true"> Power Outlets</label>
+                <label style="display: block; margin: 8px 0;"><input type="checkbox" name="wifi" value="true"> Fast Wi-Fi</label>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <p style="font-weight: bold; color: #555;">Location Type:</p>
+                <label style="display: block; margin: 8px 0;"><input type="checkbox" name="type" value="library"> Library</label>
+                <label style="display: block; margin: 8px 0;"><input type="checkbox" name="type" value="cafe"> Cafe/Food Court</label>
+                <label style="display: block; margin: 8px 0;"><input type="checkbox" name="type" value="lab"> Computer Lab</label>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <p style="font-weight: bold; color: #555;">Search Radius:</p>
+                <select name="radius" style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #ffb5e5; outline: none;">
+                    <option value="500">500m (Walking)</option>
+                    <option value="1000">1km</option>
+                    <option value="2000">2km (Transit)</option>
+                </select>
+            </div>
+
+            <button type="submit" style="width: 100%; background: #ffb5e5; color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.3s;">
+                Apply Filters
+            </button>
+        </form>
+    </div>
+
+    <div id="map" style="flex: 1; height: 100%; background: #eee;"></div>
+
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    var map = L.map('map', {
+        zoomControl: false // We can move this to the right side later for better UI
+    }).setView([51.0782, -114.1305], 15);
+
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    document.getElementById('filter-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        console.log("Filters Selected:", Object.fromEntries(formData));
+    });
+</script>
+{% endblock %}
