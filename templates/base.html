@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Name</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header style="background: #ffb5e5; padding: 15px; text-align: center;">
+        <h1>Study Spot Finder</h1>
+        <nav>
+            <a href="/">Home</a> | 
+            {% if current_user.is_authenticated %}
+                <a href="/dashboard">Dashboard</a> | 
+                <a href="/logout">Logout</a>
+            {% else %}
+                <a href="/login">Login</a> | 
+                <a href="/register">Register</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main style="max-width: 800px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer style="text-align: center; margin-top: 50px; color: #777;">
+        <p>ENGO 551 Final Project - Geomatics Engineering</p>
+    </footer>
+</body>
+</html>
