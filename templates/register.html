@@ -1,34 +1,30 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div style="max-width: 400px; margin: 50px auto; padding: 30px; border: 2px solid #ffb5e5; border-radius: 15px;"></div>
-        <h2 style="color: #d881b4;">Create Student Account</h2>
-        <p>Join Study Spot Finder to start exploring campus locations.</p>
+<div class="auth-wrapper">
+    <div class="auth-box">
+        <h2>Create Account</h2>
+        <p class="auth-subtext">Join Study Spot Finder to start exploring campus locations.</p>
 
-        {# Flash messages for "Username already exists" #}
         {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            {% for message in messages %}
-            <p style="color: #d881b4; font-weight: bold;">{{ message }}</p>
-            {% endfor %}
-        {% endif %}
+            {% if messages %}
+                {% for message in messages %}
+                    <p class="flash-message">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
         {% endwith %}
 
-        <form method="POST" style="text-align: left;">
-            <label>Choose a Username:</label><br>
-            <input type="text" name="username" required 
-                style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px;"><br>
-            
-            <label>Choose a Password:</label><br>
-            <input type="password" name="password" required 
-                style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px;"><br>
-            
-            <button type="submit" 
-                    style="background: #ffb5e5; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold;">
-                Create Account
-            </button>
+        <form method="POST" class="auth-form">
+            <label for="username">Choose a Username:</label>
+            <input id="username" type="text" name="username" required>
+
+            <label for="password">Choose a Password:</label>
+            <input id="password" type="password" name="password" required>
+
+            <button type="submit">Create Account</button>
         </form>
 
-        <p style="margin-top: 20px;">Already have an account? <a href="{{ url_for('login') }}" style="color: #d881b4;">Login here</a></p>
+        <p>Already have an account? <a class="small-link" href="{{ url_for('login') }}">Login here</a></p>
     </div>
+</div>
 {% endblock %}

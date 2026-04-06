@@ -1,0 +1,168 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #5c4033;
+}
+
+body.auth-page {
+    background-image: linear-gradient(rgba(248, 243, 237, 0.45), rgba(248, 243, 237, 0.45)), url("/static/images/background.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+.site-header {
+    text-align: center;
+    padding: 28px 20px 10px 20px;
+    background: transparent;
+}
+
+.site-header h1 {
+    margin: 0;
+    font-size: 3.8rem;
+    color: #3f2a1f;
+}
+
+.site-main {
+    min-height: calc(100vh - 100px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.auth-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.auth-box {
+    width: 100%;
+    max-width: 430px;
+    background: rgba(250, 245, 240, 0.82);
+    border: 1px solid rgba(92, 64, 51, 0.15);
+    border-radius: 20px;
+    padding: 35px;
+    text-align: center;
+    box-shadow: 0 8px 25px rgba(63, 42, 31, 0.18);
+}
+
+.auth-box h2 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    font-size: 2.2rem;
+    color: #5c4033;
+}
+
+.auth-subtext {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1rem;
+    color: #6a4c3c;
+    text-align: center;
+}
+
+.auth-form {
+    text-align: left;
+}
+
+.auth-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+    color: #5c4033;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 14px;
+    margin-bottom: 18px;
+    border: 1px solid #d8c7bb;
+    border-radius: 12px;
+    font-size: 1rem;
+    background: rgba(255, 255, 255, 0.88);
+    color: #5c4033;
+}
+
+.auth-form button {
+    width: 100%;
+    padding: 14px;
+    margin-top: 8px;
+    border: none;
+    border-radius: 12px;
+    background: #8b5e3c;
+    color: white;
+    font-size: 1.1rem;
+    font-family: Georgia, "Times New Roman", serif;
+    cursor: pointer;
+}
+
+.auth-form button:hover {
+    background: #6f4a2f;
+}
+
+.small-link {
+    display: inline-block;
+    margin-top: 18px;
+    color: #8b5e3c;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.small-link:hover {
+    text-decoration: underline;
+}
+
+.auth-box p {
+    margin-top: 18px;
+    font-size: 1rem;
+    color: #5c4033;
+    text-align: center;
+}
+
+.flash-message {
+    color: #8b5e3c;
+    font-weight: bold;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+@media (max-width: 600px) {
+    .site-header h1 {
+        font-size: 2.4rem;
+    }
+
+    .auth-box {
+        padding: 25px;
+    }
+
+    .auth-box h2 {
+        font-size: 1.8rem;
+    }
+}
+
+.message {
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.error-message {
+    background: rgba(196, 84, 84, 0.12);
+    color: #8a2f2f;
+    border: 1px solid rgba(196, 84, 84, 0.25);
+}
+
+.success-message {
+    background: rgba(120, 92, 63, 0.12);
+    color: #6b4a34;
+    border: 1px solid rgba(120, 92, 63, 0.22);
+}
