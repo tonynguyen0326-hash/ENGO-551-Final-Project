@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Spot Finder</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="site-page">
+    <div class="page-overlay">
+        <header class="site-header">
+            <div class="site-header-inner">
+                <h1 class="site-title">Study Spot Finder</h1>
+                <nav class="top-nav">
+                    <a href="{{ url_for('homepage') }}">Home</a>
+                    <a href="{{ url_for('study_spot_suggestion') }}">Study Spot Suggestion</a>
+                    <a href="{{ url_for('logout') }}">Logout</a>
+                </nav>
+            </div>
+        </header>
+
+        <main class="site-main">
+            <section class="dashboard-layout">
+                <aside class="filter-panel">
+                    <h2>Study Spot Filters</h2>
+                    <hr>
+
+                    <form id="filter-form">
+                        <div class="filter-group">
+                            <p>Atmosphere</p>
+                            <label><input type="checkbox" name="quiet" value="true"> Quiet Zone</label>
+                            <label><input type="checkbox" name="outlets" value="true"> Power Outlets</label>
+                            <label><input type="checkbox" name="wifi" value="true"> Fast Wi-Fi</label>
+                        </div>
+
+                        <div class="filter-group">
+                            <p>Location Type</p>
+                            <label><input type="checkbox" name="type" value="library"> Library</label>
+                            <label><input type="checkbox" name="type" value="cafe"> Cafe/Food Court</label>
+                            <label><input type="checkbox" name="type" value="lab"> Computer Lab</label>
+                        </div>
+
+                        <div class="filter-group">
+                            <p>Search Radius</p>
+                            <select name="radius">
+                                <option value="500">500m (Walking)</option>
+                                <option value="1000">1km</option>
+                                <option value="2000">2km (Transit)</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="primary-btn full-btn">Apply Filters</button>
+                    </form>
+                </aside>
+
+                <section class="map-section">
+                    <div class="map-card">
+                        <div class="map-card-header">
+                            <h2>Study Spot Suggestion</h2>
+                            <p>Browse the campus area and filter study locations</p>
+                        </div>
+                        <div id="map"></div>
+                    </div>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map', {
+            zoomControl: false
+        }).setView([51.0782, -114.1305], 15);
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        document.getElementById('filter-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+        });
+    </script>
+</body>
+</html>

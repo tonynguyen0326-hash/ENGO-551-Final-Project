@@ -3,30 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Spot Finder</title>
+    <title>Study Spot Suggestion</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    {% block head_extra %}{% endblock %}
 </head>
 <body class="site-page">
     <div class="page-overlay">
         <header class="site-header">
             <div class="site-header-inner">
                 <h1 class="site-title">Study Spot Finder</h1>
-                {% if not hide_nav %}
                 <nav class="top-nav">
-                    <a href="{{ url_for('index') }}">Home</a>
-                    <a href="{{ url_for('dashboard') }}">Study Spot Suggestion</a>
+                    <a href="{{ url_for('homepage') }}">Home</a>
+                    <a href="{{ url_for('study_spot_suggestion') }}">Study Spot Suggestion</a>
                     <a href="{{ url_for('logout') }}">Logout</a>
                 </nav>
-                {% endif %}
             </div>
         </header>
 
         <main class="site-main">
-            {% block content %}{% endblock %}
         </main>
     </div>
-
-    {% block scripts %}{% endblock %}
 </body>
 </html>

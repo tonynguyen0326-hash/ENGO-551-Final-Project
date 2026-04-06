@@ -41,7 +41,7 @@ def register():
         db.session.commit()
 
         login_user(new_user)
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('homepage'))
 
     return render_template('register.html', hide_nav=True)
 
@@ -57,7 +57,7 @@ def login():
             return render_template(
                 'login.html',
                 success_message='Login successful! Redirecting...',
-                redirect_url=url_for('dashboard'),
+                redirect_url=url_for('homepage'),
                 hide_nav=True
             )
 
@@ -69,21 +69,30 @@ def login():
 
     return render_template('login.html', hide_nav=True)
 
+@app.route('/')
+@login_required
+def index():
+    return redirect(url_for('homepage'))
+
+@app.route('/homepage')
+@login_required
+def homepage():
+    return render_template('homepage.html')
+
+@app.route('/study-spot-suggestion')
+@login_required
+def study_spot_suggestion():
+    return render_template('study_spot_suggestion.html')
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    return redirect(url_for('homepage'))
 
 @app.route('/logout')
 def logout():
     logout_user()
     return redirect(url_for('login'))
-
-@app.route('/')
-def index():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    return render_template('index.html')
 
 @app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password():

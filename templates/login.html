@@ -1,47 +1,64 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Spot Finder</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="site-page">
+    <div class="page-overlay">
+        <header class="site-header">
+            <div class="site-header-inner">
+                <h1 class="site-title">Study Spot Finder</h1>
+            </div>
+        </header>
 
-{% block content %}
-<div class="auth-wrapper">
-    <div class="auth-box">
-        <h2>Login</h2>
+        <main class="site-main">
+            <div class="auth-wrapper">
+                <div class="auth-box">
+                    <h2>Login</h2>
 
-        {% if error_message %}
-            <p class="message error-message">{{ error_message }}</p>
-        {% endif %}
+                    {% if error_message %}
+                        <p class="message error-message">{{ error_message }}</p>
+                    {% endif %}
 
-        {% if success_message %}
-            <p class="message success-message">{{ success_message }}</p>
-        {% endif %}
+                    {% if success_message %}
+                        <p class="message success-message">{{ success_message }}</p>
+                    {% endif %}
 
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                {% for message in messages %}
-                    <p class="message success-message">{{ message }}</p>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+                    {% with messages = get_flashed_messages() %}
+                        {% if messages %}
+                            {% for message in messages %}
+                                <p class="message success-message">{{ message }}</p>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
 
-        <form method="POST" class="auth-form">
-            <label for="username">Username:</label>
-            <input id="username" type="text" name="username" required>
+                    <form method="POST" class="auth-form">
+                        <label for="username">Username:</label>
+                        <input id="username" type="text" name="username" required>
 
-            <label for="password">Password:</label>
-            <input id="password" type="password" name="password" required>
+                        <label for="password">Password:</label>
+                        <input id="password" type="password" name="password" required>
 
-            <button type="submit">Login</button>
-        </form>
+                        <button type="submit">Login</button>
+                    </form>
 
-        <a class="small-link" href="{{ url_for('reset_password') }}">Forgot Password?</a>
+                    <a class="small-link" href="{{ url_for('reset_password') }}">Forgot Password?</a>
 
-        <p>Don't have an account? <a class="small-link" href="{{ url_for('register') }}">Register here</a></p>
+                    <p>Don't have an account? <a class="small-link" href="{{ url_for('register') }}">Register here</a></p>
+                </div>
+            </div>
+        </main>
     </div>
-</div>
 
-{% if redirect_url %}
-<script>
-    setTimeout(function() {
-        window.location.href = "{{ redirect_url }}";
-    }, 2500);
-</script>
-{% endif %}
-{% endblock %}
+    {% if redirect_url %}
+    <script>
+        setTimeout(function() {
+            window.location.href = "{{ redirect_url }}";
+        }, 2500);
+    </script>
+    {% endif %}
+</body>
+</html>
