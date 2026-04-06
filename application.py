@@ -24,7 +24,7 @@ class User(UserMixin, db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.get(User, int(user_id))
+    return User.query.get(int(user_id))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -43,7 +43,7 @@ def register():
         login_user(new_user)
         return redirect(url_for('dashboard'))
 
-    return render_template('register.html')
+    return render_template('register.html', hide_nav=True)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -57,15 +57,17 @@ def login():
             return render_template(
                 'login.html',
                 success_message='Login successful! Redirecting...',
-                redirect_url=url_for('dashboard')
+                redirect_url=url_for('dashboard'),
+                hide_nav=True
             )
 
         return render_template(
             'login.html',
-            error_message='Incorrect username or password'
+            error_message='Incorrect username or password',
+            hide_nav=True
         )
 
-    return render_template('login.html')
+    return render_template('login.html', hide_nav=True)
 
 @app.route('/dashboard')
 @login_required
@@ -99,7 +101,7 @@ def reset_password():
         else:
             flash('Username not found.')
 
-    return render_template('reset_password.html')
+    return render_template('reset_password.html', hide_nav=True)
 
 if __name__ == '__main__':
     with app.app_context():
