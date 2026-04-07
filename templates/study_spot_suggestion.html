@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Study Spot Suggestion</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body class="site-page">
@@ -20,7 +21,209 @@
         </header>
 
         <main class="site-main">
+            <section class="suggestion-layout">
+                <aside class="filter-panel">
+                    <h2>Vibe Check</h2>
+                    <hr>
+
+                    <form id="vibe-form">
+                        <div class="filter-group">
+                            <p>Pick Your Study Mood</p>
+                            <select id="vibe-select" name="vibe">
+                                <option value="finals_solo">Finals Study Solo</option>
+                                <option value="group_study">Group Study</option>
+                                <option value="capstone_project">Capstone Project</option>
+                                <option value="cozy_cafe">Cozy Cafe Vibes</option>
+                                <option value="hanging_out">When You Say You're “Studying” But You're Really Hanging Out</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <p>Search Radius</p>
+                            <select id="radius-select" name="radius">
+                                <option value="1000">1km</option>
+                                <option value="2000" selected>2km</option>
+                                <option value="3000">3km</option>
+                                <option value="5000">5km</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="primary-btn full-btn">Find My Vibe Spot</button>
+                    </form>
+                </aside>
+
+                <section class="map-section">
+                    <div class="map-card">
+                        <div class="map-card-header">
+                            <h2>Vibe-Based Study Spot Suggestions</h2>
+                            <p>Pick your vibe, then see the best free Geoapify + Gemini matches around you.</p>
+                        </div>
+
+                        <div id="vibe-map"></div>
+                    </div>
+
+                    <div id="top-three-modal" class="top-three-modal hidden">
+                        <div class="top-three-card">
+                            <div class="top-three-header">
+                                <h2 id="top-three-title">Best 3 Spots</h2>
+                                <button id="close-top-three" type="button">✖</button>
+                            </div>
+                            <div id="top-three-summary" class="top-three-summary"></div>
+                            <div id="top-three-list" class="top-three-list"></div>
+                        </div>
+                    </div>
+                </section>
+            </section>
         </main>
     </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('vibe-map', {
+            zoomControl: false
+        }).setView([51.0782, -114.1305], 15);
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const markerLayer = L.layerGroup().addTo(map);
+
+        let userLat = null;
+        let userLng = null;
+        let allPlacesCache = [];
+
+        const vibeForm = document.getElementById('vibe-form');
+        const modal = document.getElementById('top-three-modal');
+        const closeTopThree = document.getElementById('close-top-three');
+        const topThreeTitle = document.getElementById('top-three-title');
+        const topThreeSummary = document.getElementById('top-three-summary');
+        const topThreeList = document.getElementById('top-three-list');
+
+        function escapeHtml(text) {
+            return String(text || '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function addUserMarker(lat, lng) {
+            L.marker([lat, lng]).addTo(map).bindPopup('You are here').openPopup();
+            map.setView([lat, lng], 15);
+        }
+
+        function autoLocateUser() {
+            if (!navigator.geolocation) {
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    userLat = position.coords.latitude;
+                    userLng = position.coords.longitude;
+                    addUserMarker(userLat, userLng);
+                },
+                () => {
+                    map.setView([51.0782, -114.1305], 15);
+                }
+            );
+        }
+
+        function buildPopup(place) {
+            return `
+                <div class="marker-popup">
+                    <h3>${escapeHtml(place.name)}</h3>
+                    <p class="marker-rating">${escapeHtml(place.stars)} Vibe Match</p>
+                    <p>${escapeHtml(place.address)}</p>
+                    <p>${escapeHtml(place.type)}</p>
+                    <p>${escapeHtml(place.distance)} m away</p>
+                </div>
+            `;
+        }
+
+        function renderAllPlacesOnMap(places) {
+            markerLayer.clearLayers();
+
+            const bounds = [];
+
+            if (userLat !== null && userLng !== null) {
+                const userMarker = L.marker([userLat, userLng]).bindPopup('You are here');
+                markerLayer.addLayer(userMarker);
+                bounds.push([userLat, userLng]);
+            }
+
+            places.forEach((place) => {
+                const marker = L.marker([place.lat, place.lng]).bindPopup(buildPopup(place), {
+                    maxWidth: 280,
+                    autoPan: true,
+                    keepInView: true
+                });
+
+                markerLayer.addLayer(marker);
+                bounds.push([place.lat, place.lng]);
+            });
+
+            if (bounds.length > 0) {
+                map.fitBounds(bounds, { padding: [40, 40] });
+            }
+        }
+
+        function renderTopThreeModal(data) {
+            topThreeTitle.textContent = data.gemini_box.title;
+            topThreeSummary.innerHTML = (data.gemini_box.summary || '').replace(/\n/g, '<br>');
+
+            topThreeList.innerHTML = data.top_three.map((place, index) => `
+                <div class="top-three-item">
+                    <div class="top-three-rank">#${index + 1}</div>
+                    <div class="top-three-content">
+                        <h3>${escapeHtml(place.name)}</h3>
+                        <p class="top-three-stars">${escapeHtml(place.stars)} Vibe Match</p>
+                        <p>${escapeHtml(place.address)}</p>
+                        <p>${escapeHtml(place.distance)} m away</p>
+                    </div>
+                </div>
+            `).join('');
+
+            modal.classList.remove('hidden');
+        }
+
+        vibeForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (userLat === null || userLng === null) {
+                alert('Location is still loading. Please wait a second and try again.');
+                return;
+            }
+
+            const vibe = document.getElementById('vibe-select').value;
+            const radius = document.getElementById('radius-select').value;
+
+            try {
+                const response = await fetch(`/api/geoapify-vibe-spots?vibe=${encodeURIComponent(vibe)}&radius=${encodeURIComponent(radius)}&lat=${encodeURIComponent(userLat)}&lng=${encodeURIComponent(userLng)}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert(data.error || 'Could not load vibe spots.');
+                    return;
+                }
+
+                allPlacesCache = data.all_places || [];
+                renderTopThreeModal(data);
+            } catch (error) {
+                alert('Could not load vibe spots right now.');
+            }
+        });
+
+        closeTopThree.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            renderAllPlacesOnMap(allPlacesCache);
+        });
+
+        autoLocateUser();
+    </script>
 </body>
 </html>

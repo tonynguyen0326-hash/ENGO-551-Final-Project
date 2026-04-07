@@ -3,9 +3,11 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+import requests
 from dotenv import load_dotenv
 from sqlalchemy import text
 from google import genai
+import requests
 
 load_dotenv()
 
@@ -388,6 +390,227 @@ def rank_spots_with_ai(spots, filters):
         print("Ranking error:", e)
         return spots
     
+def get_vibe_profile(vibe_key):
+    vibes = {
+        'finals_solo': {
+            'label': 'Finals Study Solo',
+            'categories': 'education.library,education.university,catering.cafe.coffee_shop',
+            'conditions': 'internet_access',
+            'keywords': ['quiet', 'library', 'solo', 'focus']
+        },
+        'group_study': {
+            'label': 'Group Study',
+            'categories': 'education.library,catering.cafe,catering.food_court,education.university',
+            'conditions': 'internet_access',
+            'keywords': ['group', 'discussion', 'table', 'meeting']
+        },
+        'capstone_project': {
+            'label': 'Capstone Project',
+            'categories': 'office.coworking,education.library,catering.cafe.coffee_shop,education.university',
+            'conditions': 'internet_access',
+            'keywords': ['project', 'wifi', 'workspace', 'team']
+        },
+        'cozy_cafe': {
+            'label': 'Cozy Cafe Vibes',
+            'categories': 'catering.cafe,catering.cafe.coffee_shop,catering.cafe.dessert,catering.cafe.tea',
+            'conditions': 'internet_access',
+            'keywords': ['cozy', 'cafe', 'warm', 'relaxed']
+        },
+        'hanging_out': {
+            'label': 'When You Say You’re Studying But You’re Really Hanging Out',
+            'categories': 'catering.cafe.bubble_tea,catering.cafe.dessert,catering.food_court,catering.cafe',
+            'conditions': '',
+            'keywords': ['social', 'hangout', 'fun', 'friends']
+        }
+    }
+
+    return vibes.get(vibe_key, vibes['finals_solo'])
+
+
+def categories_to_label(categories):
+    if not categories:
+        return 'Study Spot'
+
+    text = categories[0]
+    text = text.replace('.', ' ').replace('_', ' ').title()
+    return text
+
+
+def vibe_score(place, vibe):
+    props = place.get('properties', {})
+    name = (props.get('name') or '').lower()
+    categories = props.get('categories') or []
+    category_blob = ' '.join(categories).lower()
+    distance = props.get('distance') or 999999
+
+    score = 0
+
+    for keyword in vibe['keywords']:
+        if keyword in name or keyword in category_blob:
+            score += 12
+
+    if 'internet_access' in category_blob:
+        score += 10
+
+    if 'education.library' in category_blob:
+        score += 14
+
+    if 'office.coworking' in category_blob:
+        score += 12
+
+    if 'catering.cafe' in category_blob:
+        score += 8
+
+    if distance < 500:
+        score += 12
+    elif distance < 1000:
+        score += 8
+    elif distance < 2000:
+        score += 4
+
+    return score
+
+
+def vibe_stars(score):
+    if score >= 38:
+        return '★★★★★'
+    if score >= 30:
+        return '★★★★☆'
+    if score >= 22:
+        return '★★★☆☆'
+    if score >= 14:
+        return '★★☆☆☆'
+    return '★☆☆☆☆'
+
+
+def build_gemini_top_three(vibe_label, places):
+    if not places:
+        return {
+            'title': f'Best 3 for {vibe_label}',
+            'summary': 'No strong vibe matches showed up yet. Try a bigger search radius or another vibe.'
+        }
+
+    top_three = places[:3]
+
+    place_lines = []
+    for i, place in enumerate(top_three, start=1):
+        place_lines.append(
+            f"{i}. {place['name']} | type: {place['type']} | address: {place['address']} | distance: {place['distance']}m | vibe score: {place['score']}"
+        )
+
+    prompt = f"""
+You are a fun student study-spot assistant.
+
+The selected vibe is: {vibe_label}
+
+Using only these 3 places, write:
+1. a short title
+2. a short 2-3 sentence summary
+3. a numbered top 3 list with one quick reason for each place
+
+Keep it playful, student-friendly, and concise.
+
+Places:
+{chr(10).join(place_lines)}
+"""
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
+
+        return {
+            'title': f'Best 3 for {vibe_label}',
+            'summary': response.text.strip()
+        }
+    except Exception:
+        return {
+            'title': f'Best 3 for {vibe_label}',
+            'summary': 'These are the strongest vibe matches based on place type, internet access, and distance.'
+        }
+
+
+@app.route('/api/geoapify-vibe-spots')
+@login_required
+def geoapify_vibe_spots():
+    lat = request.args.get('lat', type=float)
+    lng = request.args.get('lng', type=float)
+    radius = request.args.get('radius', type=int, default=2000)
+    vibe_key = request.args.get('vibe', default='finals_solo')
+
+    if lat is None or lng is None:
+        return jsonify({'error': 'Missing location coordinates.'}), 400
+
+    api_key = os.getenv('GEOAPIFY_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'Missing GEOAPIFY_API_KEY in .env'}), 400
+
+    vibe = get_vibe_profile(vibe_key)
+
+    params = {
+        'categories': vibe['categories'],
+        'filter': f'circle:{lng},{lat},{radius}',
+        'bias': f'proximity:{lng},{lat}',
+        'limit': 20,
+        'lang': 'en',
+        'apiKey': api_key
+    }
+
+    if vibe['conditions']:
+        params['conditions'] = vibe['conditions']
+
+    try:
+        response = requests.get(
+            'https://api.geoapify.com/v2/places',
+            params=params,
+            timeout=20
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        features = data.get('features', [])
+        places = []
+
+        for feature in features:
+            props = feature.get('properties', {})
+            geometry = feature.get('geometry', {})
+            coords = geometry.get('coordinates', [None, None])
+
+            if coords[0] is None or coords[1] is None:
+                continue
+
+            score = vibe_score(feature, vibe)
+
+            mapped = {
+                'name': props.get('name') or props.get('formatted') or 'Unnamed Place',
+                'address': props.get('formatted') or props.get('address_line1') or 'Address unavailable',
+                'type': categories_to_label(props.get('categories')),
+                'distance': props.get('distance') or 0,
+                'lat': coords[1],
+                'lng': coords[0],
+                'score': score,
+                'stars': vibe_stars(score),
+                'categories': props.get('categories') or [],
+                'place_id': props.get('place_id') or ''
+            }
+
+            places.append(mapped)
+
+        places.sort(key=lambda p: (p['score'], -p['distance']), reverse=True)
+
+        gemini_box = build_gemini_top_three(vibe['label'], places)
+
+        return jsonify({
+            'vibe_label': vibe['label'],
+            'top_three': places[:3],
+            'all_places': places,
+            'gemini_box': gemini_box
+        })
+
+    except requests.RequestException as e:
+        return jsonify({'error': f'Geoapify request failed: {str(e)}'}), 500
+        
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
