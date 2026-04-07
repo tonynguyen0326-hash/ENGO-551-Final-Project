@@ -67,7 +67,7 @@
                 <section class="map-section">
                     <div class="map-card">
                         <div class="map-card-header">
-                            <h2>Study Spot Suggestion</h2>
+                            <h2>Find the Study Spot For You!</h2>
                             <p>Browse the campus area and filter study locations</p>
                         </div>
 
@@ -81,7 +81,7 @@
                     <div id="ranking-panel" class="ranking-panel hidden">
                         <div class="ranking-header">
                             <h2>Top Study Spots ⭐</h2>
-                            <button id="close-ranking">✖</button>
+                            <button id="close-ranking" type="button">✖</button>
                         </div>
                         <div id="ranking-list"></div>
                     </div>
@@ -93,7 +93,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        // 1. Initialize Map
         var map = L.map('map', {
             zoomControl: false
         }).setView([51.0782, -114.1305], 15);
@@ -106,13 +105,12 @@
 
         let markerLayer = L.layerGroup().addTo(map);
 
-        // 2. Handle Form Submission
         document.getElementById('filter-form').addEventListener('submit', function(e) {
             e.preventDefault();
 
-            const userLocation = map.getCenter(); 
+            const userLocation = map.getCenter();
             const formData = new FormData(this);
-            
+
             const params = new URLSearchParams(formData);
             params.append('lat', userLocation.lat);
             params.append('lng', userLocation.lng);
@@ -124,12 +122,11 @@
                 .then(response => response.json())
                 .then(data => {
                     renderMarkers(data);
-                    renderRankingList(data);    
+                    renderRankingList(data);
                 })
                 .catch(err => console.error("Search error:", err));
         });
 
-        // 3. UI Logic: Toggle Sub-menus
         const checkOnCampus = document.getElementById('check-on-campus');
         const checkOffCampus = document.getElementById('check-off-campus');
         const onCampusTypes = document.getElementById('on-campus-types');
@@ -142,8 +139,8 @@
 
         checkOnCampus.addEventListener('change', toggleTypeVisibility);
         checkOffCampus.addEventListener('change', toggleTypeVisibility);
+        toggleTypeVisibility();
 
-        // 4. User Location Logic
         function onLocationFound(e) {
             var radius = e.accuracy / 2;
             L.marker(e.latlng).addTo(map).bindPopup("You are here").openPopup();
@@ -159,9 +156,8 @@
         map.on('locationerror', onLocationError);
         map.locate({setView: true, maxZoom: 16});
 
-        // 5. Core Function: Render Markers
         function renderMarkers(data) {
-            markerLayer.clearLayers(); 
+            markerLayer.clearLayers();
 
             if (data.length === 0) {
                 alert("No spots found with these filters.");
@@ -171,9 +167,6 @@
             data.forEach(spot => {
                 const safeName = spot.name.replace(/[^a-z0-9]/gi, '-');
                 const summaryId = `summary-${safeName}`;
-                
-                // This is the CRITICAL fix for the AI button
-                // It escapes names so MacEwan Hall doesn't break the onclick string
                 const escapedName = spot.name.replace(/'/g, "\\'");
 
                 let popupContent = `
@@ -198,13 +191,12 @@
                     </div>
                 `;
 
-                const marker = L.marker([spot.lat, spot.lon])
-                .bindPopup(popupContent, { 
+                const marker = L.marker([spot.lat, spot.lon]).bindPopup(popupContent, {
                     maxWidth: 300,
-                    autoPan: true,      // Centers the map on the popup if it's near the edge
-                    keepInView: true    // Prevents the popup from being moved off-screen
+                    autoPan: true,
+                    keepInView: true
                 });
-                    
+
                 markerLayer.addLayer(marker);
             });
 
@@ -212,21 +204,16 @@
             map.fitBounds(bounds, { padding: [50, 50] });
         }
 
-        // 6. AI Summary AJAX
         function fetchSummary(locationName, containerId) {
-            // 1. Stop map click event from closing the popup
             if (window.event) window.event.stopPropagation();
 
-            // 2. Find the container specifically inside the current open popup
-            // Leaflet moves popup content into a specific div; we need to find it there.
             const activePopup = document.querySelector('.leaflet-popup-content');
             const container = activePopup ? activePopup.querySelector(`#${containerId}`) : document.getElementById(containerId);
 
             if (!container) return;
 
             container.innerHTML = `<span style="font-size:0.8em; color:#666;">🤖 AI is analyzing reviews...</span>`;
-            
-            // Resize popup for "loading" text
+
             if (map._popup) map._popup.update();
 
             fetch(`/api/summarize/${encodeURIComponent(locationName)}`)
@@ -237,7 +224,6 @@
                             <strong>AI Verdict:</strong> ${data.summary}
                         </div>
                     `;
-                    // 3. Force Leaflet to expand the bubble to fit the new text
                     if (map._popup) map._popup.update();
                 })
                 .catch(err => {
@@ -247,12 +233,14 @@
         }
 
         const panel = document.getElementById('ranking-panel');
+        const toggleRankingButton = document.getElementById('toggle-ranking');
+        const closeRankingButton = document.getElementById('close-ranking');
 
-        document.getElementById('toggle-ranking').addEventListener('click', () => {
+        toggleRankingButton.addEventListener('click', () => {
             panel.classList.remove('hidden');
         });
 
-        document.getElementById('close-ranking').addEventListener('click', () => {
+        closeRankingButton.addEventListener('click', () => {
             panel.classList.add('hidden');
         });
 
@@ -270,7 +258,6 @@
                     ${spot.tip ? `<div style="font-size:0.8em; margin-top:5px;">"${spot.tip}"</div>` : ''}
                 `;
 
-                // 👇 click = zoom to marker
                 div.onclick = () => {
                     map.setView([spot.lat, spot.lon], 17);
                 };
