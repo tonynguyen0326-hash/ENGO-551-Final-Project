@@ -4,6 +4,8 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from dotenv import load_dotenv
+from sqlalchemy import text
+from google import genai
 
 load_dotenv()
 
@@ -11,7 +13,11 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+# Update your client setup line:
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY"),
+    http_options={'api_version': 'v1'} 
+)
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -112,6 +118,142 @@ def reset_password():
 
     return render_template('reset_password.html', hide_nav=True)
 
+from flask import jsonify
+
+@app.route('/api/search')
+@login_required
+def search_spots():
+    lat = request.args.get('lat', type=float)
+    lng = request.args.get('lng', type=float)
+    radius = request.args.get('radius', type=int, default=1000)
+    types = request.args.getlist('type')
+    
+    on_campus = request.args.get('on-campus') == 'true'
+    off_campus = request.args.get('off-campus') == 'true'
+    
+    # Atmosphere filters
+    want_quiet = request.args.get('quiet') == 'true'
+    want_outlets = request.args.get('outlets') == 'true'
+    want_wifi = request.args.get('wifi') == 'true'
+
+    results = []
+    params = {'lng': lng, 'lat': lat, 'radius': radius}
+
+    # --- HELPER: BUILD ATMOSPHERE SQL ---
+    atmos_conditions = []
+    if want_quiet:
+        atmos_conditions.append("r.comment ILIKE '%quiet%'")
+    if want_outlets:
+        atmos_conditions.append("(r.comment ILIKE '%outlet%' OR r.comment ILIKE '%charging%' OR r.comment ILIKE '%plugin%')")
+    if want_wifi:
+        atmos_conditions.append("(r.comment ILIKE '%wifi%' OR r.comment ILIKE '%wi-fi%' OR r.comment ILIKE '%internet%')")
+    
+    atmos_sql = " AND " + " AND ".join(atmos_conditions) if atmos_conditions else ""
+
+    # --- 1. LIBRARIES ---
+    if 'library' in types:
+        if on_campus:
+            query = text(f"""
+                SELECT DISTINCT ON (u.name) u.name, ST_X(u.coords) as lon, ST_Y(u.coords) as lat, r.comment, r.source
+                FROM uni u
+                JOIN reddit r ON r.location = u.name
+                WHERE (u.name ILIKE '%Library%' OR r.comment ILIKE '%Library%')
+                {atmos_sql}
+                AND ST_DWithin(u.coords::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)
+            """)
+            res = db.session.execute(query, params)
+            for row in res:
+                results.append({'name': row.name, 'lat': row.lat, 'lon': row.lon, 'type': 'Campus Library', 'tip': row.comment, 'source': row.source})
+
+        if off_campus:
+            # Note: We use LEFT JOIN so we don't hide libraries that don't have reddit tips, 
+            # UNLESS the user specifically filtered for atmosphere (which requires a comment).
+            join_type = "JOIN" if atmos_conditions else "LEFT JOIN"
+            query = text(f"""
+                SELECT DISTINCT ON (l.name) l.name, ST_X(l.coords) as lon, ST_Y(l.coords) as lat, r.comment, r.source
+                FROM libraries l
+                {join_type} reddit r ON r.location = l.name
+                WHERE ST_DWithin(l.coords::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)
+                {atmos_sql}
+            """)
+            res = db.session.execute(query, params)
+            for row in res:
+                results.append({'name': row.name, 'lat': row.lat, 'lon': row.lon, 'type': 'Public Library', 'tip': row.comment, 'source': row.source})
+
+    # --- 2. CAFE / FOOD ---
+    if 'cafe' in types:
+        join_type = "JOIN" if atmos_conditions else "LEFT JOIN"
+        sql = f"""
+            SELECT DISTINCT ON (f.name) f.name, ST_X(f.coords) as lon, ST_Y(f.coords) as lat, r.comment, r.source
+            FROM food f
+            {join_type} reddit r ON r.location = f.name
+            WHERE ST_DWithin(f.coords::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)
+            {atmos_sql}
+        """
+        if on_campus and not off_campus:
+            sql += " AND EXISTS (SELECT 1 FROM uni u WHERE ST_DWithin(f.coords::geography, u.coords::geography, 300))"
+        elif off_campus and not on_campus:
+            sql += " AND NOT EXISTS (SELECT 1 FROM uni u WHERE ST_DWithin(f.coords::geography, u.coords::geography, 300))"
+
+        cafes = db.session.execute(text(sql), params)
+        for row in cafes:
+            results.append({'name': row.name, 'lat': row.lat, 'lon': row.lon, 'type': 'Cafe', 'tip': row.comment, 'source': row.source})
+
+    # --- 3. CAMPUS SPECIFIC (Classrooms, Halls, Lounges) ---
+    if on_campus:
+        campus_filters = []
+        if 'uni_classroom' in types: campus_filters.append("r.comment ILIKE '%classroom%'")
+        if 'uni_hall' in types: campus_filters.append("(r.comment ILIKE '%hallway%' OR r.comment ILIKE '%atrium%')")
+        if 'uni_lounges' in types: campus_filters.append("r.comment ILIKE '%lounge%'")
+
+        if campus_filters:
+            type_sql = "(" + " OR ".join(campus_filters) + ")"
+            query = text(f"""
+                SELECT u.name, ST_X(u.coords) as lon, ST_Y(u.coords) as lat, r.comment, r.source
+                FROM uni u
+                JOIN reddit r ON r.location = u.name
+                WHERE {type_sql} {atmos_sql}
+                AND ST_DWithin(u.coords::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)
+            """)
+            res = db.session.execute(query, params)
+            for row in res:
+                results.append({'name': row.name, 'lat': row.lat, 'lon': row.lon, 'type': 'Campus Study Spot', 'tip': row.comment, 'source': row.source})
+
+    return jsonify(results)
+
+@app.route('/api/summarize/<name>')
+@login_required
+def summarize(name):
+    # 1. Fetch all comments for this specific building/cafe
+    rows = db.session.execute(
+        text("SELECT comment FROM reddit WHERE location = :name"),
+        {'name': name}
+    ).fetchall()
+    
+    if not rows:
+        return jsonify({"summary": "No student reviews available for this spot yet."})
+
+    # 2. Combine comments into one block of text
+    combined_comments = " ".join([row[0] for row in rows])
+
+    # 3. Call Gemini
+    prompt = f"""
+    Based on these student reviews for '{name}', give a 2-sentence summary.
+    Focus on noise levels, outlet availability, and the general vibe.
+    Reviews: {combined_comments}
+    """
+    
+    try:
+        
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=prompt
+        )
+        return jsonify({"summary": response.text})
+    except Exception as e:
+        print(f"Gemini Error: {e}")
+        return jsonify({"summary": "Could not generate summary at this time."}), 500
+    
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

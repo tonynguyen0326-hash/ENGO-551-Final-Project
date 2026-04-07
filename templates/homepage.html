@@ -35,10 +35,20 @@
                         </div>
 
                         <div class="filter-group">
+                            <p>Location Area</p>
+                            <label><input type="checkbox" name="on-campus" value="true" id="check-on-campus"> On Campus</label>
+                            <label><input type="checkbox" name="off-campus" value="true" id="check-off-campus"> Off Campus</label>
+                        </div>
+
+                        <div class="filter-group">
                             <p>Location Type</p>
-                            <label><input type="checkbox" name="type" value="library"> Library</label>
-                            <label><input type="checkbox" name="type" value="cafe"> Cafe/Food Court</label>
-                            <label><input type="checkbox" name="type" value="lab"> Computer Lab</label>
+                            <label><input type="checkbox" name="type" value="library"> Libraries</label>
+                            <label><input type="checkbox" name="type" value="cafe"> Cafe/Food</label>
+                            <div id="on-campus-types">
+                                <label><input type="checkbox" name="type" value="uni_hall"> Study Halls</label>
+                                <label><input type="checkbox" name="type" value="uni_classroom"> Classrooms</label>
+                                <label><input type="checkbox" name="type" value="uni_lounges"> Study Lounges</label>
+                            </div>
                         </div>
 
                         <div class="filter-group">
@@ -68,7 +78,9 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <script>
+        // 1. Initialize Map
         var map = L.map('map', {
             zoomControl: false
         }).setView([51.0782, -114.1305], 15);
@@ -79,9 +91,142 @@
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
+        let markerLayer = L.layerGroup().addTo(map);
+
+        // 2. Handle Form Submission
         document.getElementById('filter-form').addEventListener('submit', function(e) {
             e.preventDefault();
+
+            const userLocation = map.getCenter(); 
+            const formData = new FormData(this);
+            
+            const params = new URLSearchParams(formData);
+            params.append('lat', userLocation.lat);
+            params.append('lng', userLocation.lng);
+
+            params.set('on-campus', document.getElementById('check-on-campus').checked);
+            params.set('off-campus', document.getElementById('check-off-campus').checked);
+
+            fetch(`/api/search?${params.toString()}`)
+                .then(response => response.json())
+                .then(data => {
+                    renderMarkers(data);
+                })
+                .catch(err => console.error("Search error:", err));
         });
+
+        // 3. UI Logic: Toggle Sub-menus
+        const checkOnCampus = document.getElementById('check-on-campus');
+        const checkOffCampus = document.getElementById('check-off-campus');
+        const onCampusTypes = document.getElementById('on-campus-types');
+        const offCampusTypes = document.getElementById('off-campus-types');
+
+        function toggleTypeVisibility() {
+            if (onCampusTypes) onCampusTypes.style.display = checkOnCampus.checked ? 'block' : 'none';
+            if (offCampusTypes) offCampusTypes.style.display = checkOffCampus.checked ? 'block' : 'none';
+        }
+
+        checkOnCampus.addEventListener('change', toggleTypeVisibility);
+        checkOffCampus.addEventListener('change', toggleTypeVisibility);
+
+        // 4. User Location Logic
+        function onLocationFound(e) {
+            var radius = e.accuracy / 2;
+            L.marker(e.latlng).addTo(map).bindPopup("You are here").openPopup();
+            L.circle(e.latlng, radius).addTo(map);
+            map.setView(e.latlng, 16);
+        }
+
+        function onLocationError(e) {
+            console.log("Location not found: " + e.message);
+        }
+
+        map.on('locationfound', onLocationFound);
+        map.on('locationerror', onLocationError);
+        map.locate({setView: true, maxZoom: 16});
+
+        // 5. Core Function: Render Markers
+        function renderMarkers(data) {
+            markerLayer.clearLayers(); 
+
+            if (data.length === 0) {
+                alert("No spots found with these filters.");
+                return;
+            }
+
+            data.forEach(spot => {
+                const safeName = spot.name.replace(/[^a-z0-9]/gi, '-');
+                const summaryId = `summary-${safeName}`;
+                
+                // This is the CRITICAL fix for the AI button
+                // It escapes names so MacEwan Hall doesn't break the onclick string
+                const escapedName = spot.name.replace(/'/g, "\\'");
+
+                let popupContent = `
+                    <div style="min-width: 200px;">
+                        <h3 style="margin:0 0 5px 0;">${spot.name}</h3>
+                        <span style="background:#eee; padding:2px 5px; border-radius:3px; font-size:0.8em;">${spot.type}</span>
+                        
+                        <div id="${summaryId}" style="margin-top: 10px;">
+                            <button onclick="fetchSummary('${escapedName}', '${summaryId}')" 
+                                    style="background: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8em;">
+                                Generate AI Summary ✨
+                            </button>
+                        </div>
+
+                        ${spot.tip ? `
+                            <hr style="margin: 10px 0;">
+                            <p style="font-style: italic; font-size: 0.9em; margin-bottom: 2px;">"${spot.tip}"</p>
+                            <div style="text-align: right; color: #ff4500; font-weight: bold; font-size: 0.75em;">
+                                via ${spot.source}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                const marker = L.marker([spot.lat, spot.lon])
+                .bindPopup(popupContent, { 
+                    maxWidth: 300,
+                    autoPan: true,      // Centers the map on the popup if it's near the edge
+                    keepInView: true    // Prevents the popup from being moved off-screen
+                });
+                    
+                markerLayer.addLayer(marker);
+            });
+
+            const bounds = L.latLngBounds(data.map(d => [d.lat, d.lon]));
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+
+        // 6. AI Summary AJAX
+        function fetchSummary(locationName, containerId) {
+            // 1. Prevent the click from "bubbling" to the map and closing the popup
+            if (window.event) window.event.stopPropagation();
+
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<span style="font-size:0.8em; color:#666;">🤖 AI is analyzing...</span>`;
+
+            fetch(`/api/summarize/${encodeURIComponent(locationName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    container.innerHTML = `
+                        <div style="background: #f8f9fa; border-left: 3px solid #007bff; padding: 8px; font-size: 0.85em; margin-top: 5px;">
+                            <strong>AI Verdict:</strong> ${data.summary}
+                        </div>
+                    `;
+                    
+                    // 2. IMPORTANT: Tell Leaflet to refresh the popup size/position
+                    // This stops the "flickering" or disappearing act.
+                    const openPopup = map._popup;
+                    if (openPopup) {
+                        openPopup.update();
+                    }
+                })
+                .catch(err => {
+                    container.innerHTML = `<span style="color:red; font-size:0.8em;">Summary unavailable.</span>`;
+                    console.error(err);
+                });
+        }
     </script>
 </body>
 </html>
