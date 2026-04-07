@@ -200,27 +200,31 @@
 
         // 6. AI Summary AJAX
         function fetchSummary(locationName, containerId) {
-            // 1. Prevent the click from "bubbling" to the map and closing the popup
+            // 1. Stop map click event from closing the popup
             if (window.event) window.event.stopPropagation();
 
-            const container = document.getElementById(containerId);
-            container.innerHTML = `<span style="font-size:0.8em; color:#666;">🤖 AI is analyzing...</span>`;
+            // 2. Find the container specifically inside the current open popup
+            // Leaflet moves popup content into a specific div; we need to find it there.
+            const activePopup = document.querySelector('.leaflet-popup-content');
+            const container = activePopup ? activePopup.querySelector(`#${containerId}`) : document.getElementById(containerId);
+
+            if (!container) return;
+
+            container.innerHTML = `<span style="font-size:0.8em; color:#666;">🤖 AI is analyzing reviews...</span>`;
+            
+            // Resize popup for "loading" text
+            if (map._popup) map._popup.update();
 
             fetch(`/api/summarize/${encodeURIComponent(locationName)}`)
                 .then(response => response.json())
                 .then(data => {
                     container.innerHTML = `
-                        <div style="background: #f8f9fa; border-left: 3px solid #007bff; padding: 8px; font-size: 0.85em; margin-top: 5px;">
+                        <div style="background: #f8f9fa; border-left: 3px solid #007bff; padding: 8px; font-size: 0.85em; margin-top: 5px; color: #333;">
                             <strong>AI Verdict:</strong> ${data.summary}
                         </div>
                     `;
-                    
-                    // 2. IMPORTANT: Tell Leaflet to refresh the popup size/position
-                    // This stops the "flickering" or disappearing act.
-                    const openPopup = map._popup;
-                    if (openPopup) {
-                        openPopup.update();
-                    }
+                    // 3. Force Leaflet to expand the bubble to fit the new text
+                    if (map._popup) map._popup.update();
                 })
                 .catch(err => {
                     container.innerHTML = `<span style="color:red; font-size:0.8em;">Summary unavailable.</span>`;
