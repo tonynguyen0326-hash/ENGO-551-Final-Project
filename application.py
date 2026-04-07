@@ -15,8 +15,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Update your client setup line:
 client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY"),
-    http_options={'api_version': 'v1'} 
+    api_key=os.getenv("GEMINI_API_KEY") 
 )
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -297,6 +296,97 @@ def search_spots():
                 })
 
     return jsonify(results)
+
+@app.route('/api/summarize/<name>')
+@login_required
+def summarize(name):
+    rows = db.session.execute(
+        text("SELECT comment FROM reddit WHERE location = :name"),
+        {'name': name}
+    ).fetchall()
+
+    if not rows:
+        return jsonify({"summary": "No student reviews available for this spot yet."})
+
+    combined_comments = " ".join([row[0] for row in rows])
+
+    prompt = f"""
+    You are analyzing student reviews for a study spot.
+
+    Give a SHORT 2-sentence summary focusing on:
+    - Noise level (quiet or loud)
+    - Outlet availability
+    - WiFi quality
+    - Overall vibe (good for studying or not)
+
+    Be direct and helpful.
+
+    Reviews:
+    {combined_comments}
+    """
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+
+        return jsonify({"summary": response.text.strip()})
+
+    except Exception as e:
+        print("Gemini Error:", e)
+        return jsonify({"summary": "Could not generate summary."}), 500
+    
+def rank_spots_with_ai(spots, filters):
+    if not spots:
+        return spots
+
+    # Limit to avoid huge prompts
+    spots_subset = spots[:15]
+
+    spot_descriptions = []
+    for i, s in enumerate(spots_subset):
+        desc = f"{i}. {s['name']} - {s.get('tip', 'No review')}"
+        spot_descriptions.append(desc)
+
+    prompt = f"""
+    Rank these study spots from BEST to WORST based on these preferences:
+
+    Preferences:
+    - Quiet: {filters['quiet']}
+    - Outlets: {filters['outlets']}
+    - WiFi: {filters['wifi']}
+
+    Prioritize:
+    - Quiet environments
+    - Availability of outlets
+    - Good study vibe
+
+    Return ONLY a list of indices in order (best first).
+    Example: [2, 0, 1]
+
+    Spots:
+    {chr(10).join(spot_descriptions)}
+    """
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=prompt
+        )
+
+        ranked_indices = eval(response.text.strip())  # safe enough for controlled format
+
+        ranked = [spots_subset[i] for i in ranked_indices if i < len(spots_subset)]
+
+        # Append any leftovers
+        remaining = [s for i, s in enumerate(spots_subset) if i not in ranked_indices]
+
+        return ranked + remaining + spots[len(spots_subset):]
+
+    except Exception as e:
+        print("Ranking error:", e)
+        return spots
     
 if __name__ == '__main__':
     with app.app_context():

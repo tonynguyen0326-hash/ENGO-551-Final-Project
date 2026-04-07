@@ -70,7 +70,20 @@
                             <h2>Study Spot Suggestion</h2>
                             <p>Browse the campus area and filter study locations</p>
                         </div>
+
+                        <button id="toggle-ranking" class="primary-btn">
+                            View Ranked List
+                        </button>
+
                         <div id="map"></div>
+                    </div>
+
+                    <div id="ranking-panel" class="ranking-panel hidden">
+                        <div class="ranking-header">
+                            <h2>Top Study Spots ⭐</h2>
+                            <button id="close-ranking">✖</button>
+                        </div>
+                        <div id="ranking-list"></div>
                     </div>
                 </section>
             </section>
@@ -111,6 +124,7 @@
                 .then(response => response.json())
                 .then(data => {
                     renderMarkers(data);
+                    renderRankingList(data);    
                 })
                 .catch(err => console.error("Search error:", err));
         });
@@ -230,6 +244,39 @@
                     container.innerHTML = `<span style="color:red; font-size:0.8em;">Summary unavailable.</span>`;
                     console.error(err);
                 });
+        }
+
+        const panel = document.getElementById('ranking-panel');
+
+        document.getElementById('toggle-ranking').addEventListener('click', () => {
+            panel.classList.remove('hidden');
+        });
+
+        document.getElementById('close-ranking').addEventListener('click', () => {
+            panel.classList.add('hidden');
+        });
+
+        function renderRankingList(data) {
+            const container = document.getElementById('ranking-list');
+            container.innerHTML = '';
+
+            data.forEach((spot, index) => {
+                const div = document.createElement('div');
+                div.className = 'ranking-item';
+
+                div.innerHTML = `
+                    <div class="rank-number">#${index + 1} — ${spot.name}</div>
+                    <div style="font-size: 0.85em; color: #555;">${spot.type}</div>
+                    ${spot.tip ? `<div style="font-size:0.8em; margin-top:5px;">"${spot.tip}"</div>` : ''}
+                `;
+
+                // 👇 click = zoom to marker
+                div.onclick = () => {
+                    map.setView([spot.lat, spot.lon], 17);
+                };
+
+                container.appendChild(div);
+            });
         }
     </script>
 </body>

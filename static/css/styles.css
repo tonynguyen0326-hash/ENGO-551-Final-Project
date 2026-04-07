@@ -323,6 +323,42 @@ body.site-page {
     border: 1px solid rgba(92, 64, 51, 0.1);
 }
 
+.ranking-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 320px;
+    height: 100%;
+    background: white;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+    padding: 15px;
+    z-index: 1000;
+    overflow-y: auto;
+    transition: transform 0.3s ease;
+}
+
+.ranking-panel.hidden {
+    transform: translateX(100%);
+}
+
+.ranking-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ranking-item {
+    padding: 10px;
+    margin: 10px 0;
+    background: #f5f5f5;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.ranking-item:hover {
+    background: #eaeaea;
+}
+
 @media (max-width: 1100px) {
     .dashboard-layout {
         grid-template-columns: 1fr;
@@ -368,3 +404,5 @@ body.site-page {
         height: 400px;
     }
 }
+
+
