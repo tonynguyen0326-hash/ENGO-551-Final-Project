@@ -54,9 +54,11 @@
                         <div class="filter-group">
                             <p>Search Radius</p>
                             <select name="radius">
-                                <option value="500">500m (Walking)</option>
+                                <option value="500">500m</option>
                                 <option value="1000">1km</option>
-                                <option value="2000">2km (Transit)</option>
+                                <option value="2000">2km</option>
+                                <option value="3000">3km</option>
+                                <option value="5000">5km</option>
                             </select>
                         </div>
 
@@ -173,21 +175,6 @@
                     <div style="min-width: 200px;">
                         <h3 style="margin:0 0 5px 0;">${spot.name}</h3>
                         <span style="background:#eee; padding:2px 5px; border-radius:3px; font-size:0.8em;">${spot.type}</span>
-                        
-                        <div id="${summaryId}" style="margin-top: 10px;">
-                            <button onclick="fetchSummary('${escapedName}', '${summaryId}')" 
-                                    style="background: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8em;">
-                                Generate AI Summary ✨
-                            </button>
-                        </div>
-
-                        ${spot.tip ? `
-                            <hr style="margin: 10px 0;">
-                            <p style="font-style: italic; font-size: 0.9em; margin-bottom: 2px;">"${spot.tip}"</p>
-                            <div style="text-align: right; color: #ff4500; font-weight: bold; font-size: 0.75em;">
-                                via ${spot.source}
-                            </div>
-                        ` : ''}
                     </div>
                 `;
 
