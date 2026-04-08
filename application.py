@@ -135,260 +135,126 @@ def search_spots():
     want_quiet = request.args.get('quiet') == 'true'
     want_outlets = request.args.get('outlets') == 'true'
     want_wifi = request.args.get('wifi') == 'true'
+    # Added transit param
+    want_transit = request.args.get('transit') == 'true'
 
     params = {'lat': lat, 'lng': lng, 'radius': radius}
     results = []
 
     # --- 2. Build ATMOSPHERE filter ---
     atmos_conditions = []
-
     if want_quiet:
-        atmos_conditions.append("r.comment ILIKE '%quiet%'")
-
-    if want_outlets:
-        atmos_conditions.append("""
-            (r.comment ILIKE '%outlet%' OR 
-             r.comment ILIKE '%charging%' OR 
-             r.comment ILIKE '%plug%')
-        """)
-
+        atmos_conditions.append("(r.comment ILIKE '%quiet%' OR r.location ILIKE '%library%')")
     if want_wifi:
-        atmos_conditions.append("""
-            (r.comment ILIKE '%wifi%' OR 
-             r.comment ILIKE '%wi-fi%' OR 
-             r.comment ILIKE '%internet%')
-        """)
-
-    require_reddit = len(atmos_conditions) > 0
+        if not on_campus:
+            atmos_conditions.append("(r.comment ILIKE '%wifi%' OR r.comment ILIKE '%wi-fi%' OR r.comment ILIKE '%internet%')")
+    if want_outlets:
+        if on_campus:
+            atmos_conditions.append("(r.comment ILIKE '%outlet%' OR r.comment ILIKE '%charging%' OR r.comment ILIKE '%plug%' OR r.location ILIKE '%library%' OR r.location ILIKE '%classroom%')")
+        else:
+            atmos_conditions.append("(r.comment ILIKE '%outlet%' OR r.comment ILIKE '%charging%' OR r.comment ILIKE '%plug%')")
 
     atmos_sql = ""
-    if require_reddit:
-        atmos_sql = " AND (" + " OR ".join(atmos_conditions) + ")"
+    if len(atmos_conditions) > 0:
+        atmos_sql = " AND (" + " AND ".join(atmos_conditions) + ")"
 
-    # --- 3. Helper: campus filter ---
+    # --- NEW: Transit Filter logic ---
+    # This only adds a rule to the DB if the box is checked
+    transit_filter_sql = ""
+    if want_transit:
+        transit_filter_sql = """
+            AND EXISTS (
+                SELECT 1 FROM transit ts  -- Changed from transit_stops to transit
+                WHERE ST_DWithin({alias}.coords::geography, ts.coords::geography, 500) -- Changed point to coords
+            )
+        """
+
+    join_type = "JOIN" if len(atmos_conditions) > 0 else "LEFT JOIN"
+
+    # --- 3. Helpers ---
     def campus_sql(table_alias):
         if on_campus and not off_campus:
-            return f"""
-                AND EXISTS (
-                    SELECT 1 FROM uni u
-                    WHERE ST_DWithin({table_alias}.coords::geography, u.coords::geography, 300)
-                )
-            """
+            return f"AND EXISTS (SELECT 1 FROM uni u WHERE ST_DWithin({table_alias}.coords::geography, u.coords::geography, 300))"
         elif off_campus and not on_campus:
-            return f"""
-                AND NOT EXISTS (
-                    SELECT 1 FROM uni u
-                    WHERE ST_DWithin({table_alias}.coords::geography, u.coords::geography, 300)
-                )
-            """
+            return f"AND NOT EXISTS (SELECT 1 FROM uni u WHERE ST_DWithin({table_alias}.coords::geography, u.coords::geography, 300))"
         return ""
 
-    join_type = "JOIN" if require_reddit else "LEFT JOIN"
-
+    def within(alias):
+    # Changed: removed the 'point' check because your transit table uses 'coords'
+        return f"ST_DWithin({alias}.coords::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)"
+    
     # --- 4. LIBRARIES ---
     if 'library' in types:
-
-        # Campus libraries
         if on_campus:
             query = f"""
-                SELECT DISTINCT ON (u.name)
-                    u.name, ST_X(u.coords) AS lon, ST_Y(u.coords) AS lat,
-                    r.comment, r.source
-                FROM uni u
-                JOIN reddit r ON r.location = u.name
+                SELECT DISTINCT ON (u.name) u.name, ST_X(u.coords) AS lon, ST_Y(u.coords) AS lat, r.comment, r.source
+                FROM uni u JOIN reddit r ON r.location = u.name
                 WHERE (u.name ILIKE '%library%' OR r.comment ILIKE '%library%')
-                AND ST_DWithin(
-                    u.coords::geography,
-                    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
-                    :radius
-                )
-                {atmos_sql}
+                AND {within('u')} {transit_filter_sql.format(alias='u')} {atmos_sql}
             """
-
             rows = db.session.execute(text(query), params)
             for r in rows:
-                results.append({
-                    'name': r.name, 'lat': r.lat, 'lon': r.lon,
-                    'type': 'Campus Library', 'tip': r.comment, 'source': r.source
-                })
+                results.append({'name': r.name, 'lat': r.lat, 'lon': r.lon, 'type': 'Campus Library', 'tip': r.comment, 'source': r.source})
 
-        # Public libraries
         if off_campus:
             query = f"""
-                SELECT DISTINCT ON (l.name)
-                    l.name, ST_X(l.coords) AS lon, ST_Y(l.coords) AS lat,
-                    r.comment, r.source
-                FROM libraries l
-                {join_type} reddit r ON r.location = l.name
-                WHERE ST_DWithin(
-                    l.coords::geography,
-                    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
-                    :radius
-                )
-                {atmos_sql}
+                SELECT DISTINCT ON (l.name) l.name, ST_X(l.coords) AS lon, ST_Y(l.coords) AS lat, r.comment, r.source
+                FROM libraries l {join_type} reddit r ON r.location = l.name
+                WHERE {within('l')} {transit_filter_sql.format(alias='l')} {atmos_sql}
             """
-
             rows = db.session.execute(text(query), params)
             for r in rows:
-                results.append({
-                    'name': r.name, 'lat': r.lat, 'lon': r.lon,
-                    'type': 'Public Library', 'tip': r.comment, 'source': r.source
-                })
+                results.append({'name': r.name, 'lat': r.lat, 'lon': r.lon, 'type': 'Public Library', 'tip': r.comment, 'source': r.source})
 
     # --- 5. CAFES ---
     if 'cafe' in types:
         query = f"""
-            SELECT DISTINCT ON (f.name)
-                f.name, ST_X(f.coords) AS lon, ST_Y(f.coords) AS lat,
-                r.comment, r.source
-            FROM food f
-            {join_type} reddit r ON r.location = f.name
-            WHERE ST_DWithin(
-                f.coords::geography,
-                ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
-                :radius
-            )
-            {campus_sql('f')}
-            {atmos_sql}
+            SELECT DISTINCT ON (f.name) f.name, ST_X(f.coords) AS lon, ST_Y(f.coords) AS lat, r.comment, r.source
+            FROM food f {join_type} reddit r ON r.location = f.name
+            WHERE {within('f')} {campus_sql('f')} {transit_filter_sql.format(alias='f')} {atmos_sql}
         """
-
         rows = db.session.execute(text(query), params)
         for r in rows:
-            results.append({
-                'name': r.name, 'lat': r.lat, 'lon': r.lon,
-                'type': 'Cafe', 'tip': r.comment, 'source': r.source
-            })
+            results.append({'name': r.name, 'lat': r.lat, 'lon': r.lon, 'type': 'Cafe', 'tip': r.comment, 'source': r.source})
 
-    # --- 6. CAMPUS SPOTS (classrooms, halls, lounges) ---
+    # --- 6. CAMPUS SPOTS ---
     if on_campus:
         campus_types = []
-
-        if 'uni_classroom' in types:
-            campus_types.append("r.comment ILIKE '%classroom%'")
-
-        if 'uni_hall' in types:
-            campus_types.append("(r.comment ILIKE '%hallway%' OR r.comment ILIKE '%atrium%')")
-
-        if 'uni_lounges' in types:
-            campus_types.append("r.comment ILIKE '%lounge%'")
+        if 'uni_classroom' in types: campus_types.append("r.comment ILIKE '%classroom%'")
+        if 'uni_hall' in types: campus_types.append("(r.comment ILIKE '%hallway%' OR r.comment ILIKE '%atrium%')")
+        if 'uni_lounges' in types: campus_types.append("r.comment ILIKE '%lounge%'")
 
         if campus_types:
             type_sql = " OR ".join(campus_types)
-
             query = f"""
-                SELECT
-                    u.name, ST_X(u.coords) AS lon, ST_Y(u.coords) AS lat,
-                    r.comment, r.source
-                FROM uni u
-                JOIN reddit r ON r.location = u.name
-                WHERE ({type_sql})
-                AND ST_DWithin(
-                    u.coords::geography,
-                    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
-                    :radius
-                )
-                {atmos_sql}
+                SELECT u.name, ST_X(u.coords) AS lon, ST_Y(u.coords) AS lat, r.comment, r.source
+                FROM uni u JOIN reddit r ON r.location = u.name
+                WHERE ({type_sql}) AND {within('u')} {transit_filter_sql.format(alias='u')} {atmos_sql}
             """
-
             rows = db.session.execute(text(query), params)
             for r in rows:
-                results.append({
-                    'name': r.name, 'lat': r.lat, 'lon': r.lon,
-                    'type': 'Campus Study Spot', 'tip': r.comment, 'source': r.source
-                })
+                results.append({'name': r.name, 'lat': r.lat, 'lon': r.lon, 'type': 'Campus Study Spot', 'tip': r.comment, 'source': r.source})
 
-    return jsonify(results)
+    # --- 7. FETCH TRANSIT STOPS FOR MAP ---
+    transit_stops = []
+    if want_transit:
+        # This now correctly uses ts.coords thanks to the helper update above
+        t_query = f"""
+            SELECT name, ST_X(coords) as lon, ST_Y(coords) as lat 
+            FROM transit ts 
+            WHERE {within('ts')}
+        """
+        t_rows = db.session.execute(text(t_query), params)
+        for tr in t_rows:
+            transit_stops.append({
+                'name': tr.name, 
+                'lat': tr.lat, 
+                'lon': tr.lon, 
+                'type': 'transit_stop'
+            })
 
-@app.route('/api/summarize/<name>')
-@login_required
-def summarize(name):
-    rows = db.session.execute(
-        text("SELECT comment FROM reddit WHERE location = :name"),
-        {'name': name}
-    ).fetchall()
+    return jsonify({'study_spots': results, 'transit_stops': transit_stops})
 
-    if not rows:
-        return jsonify({"summary": "No student reviews available for this spot yet."})
-
-    combined_comments = " ".join([row[0] for row in rows])
-
-    prompt = f"""
-    You are analyzing student reviews for a study spot.
-
-    Give a SHORT 2-sentence summary focusing on:
-    - Noise level (quiet or loud)
-    - Outlet availability
-    - WiFi quality
-    - Overall vibe (good for studying or not)
-
-    Be direct and helpful.
-
-    Reviews:
-    {combined_comments}
-    """
-
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt
-        )
-
-        return jsonify({"summary": response.text.strip()})
-
-    except Exception as e:
-        print("Gemini Error:", e)
-        return jsonify({"summary": "Could not generate summary."}), 500
-    
-def rank_spots_with_ai(spots, filters):
-    if not spots:
-        return spots
-
-    # Limit to avoid huge prompts
-    spots_subset = spots[:15]
-
-    spot_descriptions = []
-    for i, s in enumerate(spots_subset):
-        desc = f"{i}. {s['name']} - {s.get('tip', 'No review')}"
-        spot_descriptions.append(desc)
-
-    prompt = f"""
-    Rank these study spots from BEST to WORST based on these preferences:
-
-    Preferences:
-    - Quiet: {filters['quiet']}
-    - Outlets: {filters['outlets']}
-    - WiFi: {filters['wifi']}
-
-    Prioritize:
-    - Quiet environments
-    - Availability of outlets
-    - Good study vibe
-
-    Return ONLY a list of indices in order (best first).
-    Example: [2, 0, 1]
-
-    Spots:
-    {chr(10).join(spot_descriptions)}
-    """
-
-    try:
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=prompt
-        )
-
-        ranked_indices = eval(response.text.strip())  # safe enough for controlled format
-
-        ranked = [spots_subset[i] for i in ranked_indices if i < len(spots_subset)]
-
-        # Append any leftovers
-        remaining = [s for i, s in enumerate(spots_subset) if i not in ranked_indices]
-
-        return ranked + remaining + spots[len(spots_subset):]
-
-    except Exception as e:
-        print("Ranking error:", e)
-        return spots
     
 def get_vibe_profile(vibe_key):
     vibes = {
