@@ -26,12 +26,21 @@
                     <h2>Study Spot Filters</h2>
                     <hr>
 
+                    <div class="filter-group">
+                        <div style="margin-top: 15px; text-align: right;">
+                            <a href="#" id="clear-filters" style="font-size: 0.8em; color: #888; text-decoration: none; cursor: pointer;">
+                                Clear all filters
+                            </a>
+                        </div>
+                    </div>
+
                     <form id="filter-form">
                         <div class="filter-group">
-                            <p>Atmosphere</p>
+                            <p>Ammenities</p>
                             <label><input type="checkbox" name="quiet" value="true"> Quiet Zone</label>
                             <label><input type="checkbox" name="outlets" value="true"> Power Outlets</label>
                             <label><input type="checkbox" name="wifi" value="true"> Fast Wi-Fi</label>
+                            <label><input type="checkbox" name="transit" value="true"> Transit Stops</label>
                         </div>
 
                         <div class="filter-group">
@@ -73,19 +82,8 @@
                             <p>Browse the campus area and filter study locations</p>
                         </div>
 
-                        <button id="toggle-ranking" class="primary-btn">
-                            View Ranked List
-                        </button>
-
                         <div id="map"></div>
                     </div>
-
-                    <div id="ranking-panel" class="ranking-panel hidden">
-                        <div class="ranking-header">
-                            <h2>Top Study Spots ⭐</h2>
-                            <button id="close-ranking" type="button">✖</button>
-                        </div>
-                        <div id="ranking-list"></div>
                     </div>
                 </section>
             </section>
@@ -95,6 +93,16 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
+        // 1. Define a specific icon for Transit Stops (place this near your map init)
+        const transitIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', // Red marker for transit
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
         var map = L.map('map', {
             zoomControl: false
         }).setView([51.0782, -114.1305], 15);
@@ -117,14 +125,15 @@
             params.append('lat', userLocation.lat);
             params.append('lng', userLocation.lng);
 
+            // Ensure these IDs match your actual HTML checkboxes
             params.set('on-campus', document.getElementById('check-on-campus').checked);
             params.set('off-campus', document.getElementById('check-off-campus').checked);
 
             fetch(`/api/search?${params.toString()}`)
                 .then(response => response.json())
                 .then(data => {
+                    // 'data' is now { study_spots: [], transit_stops: [] }
                     renderMarkers(data);
-                    renderRankingList(data);
                 })
                 .catch(err => console.error("Search error:", err));
         });
@@ -158,100 +167,87 @@
         map.on('locationerror', onLocationError);
         map.locate({setView: true, maxZoom: 16});
 
+
+
+        // Create a separate layer for transit dots so we can clear them easily
+        let transitLayer = L.layerGroup().addTo(map);
+
         function renderMarkers(data) {
             markerLayer.clearLayers();
+            transitLayer.clearLayers(); // Clear dots from previous searches
+            
+            allTransitStops = data.transit_stops || [];
+            const spots = data.study_spots || [];
 
-            if (data.length === 0) {
-                alert("No spots found with these filters.");
+            if (spots.length === 0) {
+                alert("No spots found.");
                 return;
             }
 
-            data.forEach(spot => {
-                const safeName = spot.name.replace(/[^a-z0-9]/gi, '-');
-                const summaryId = `summary-${safeName}`;
-                const escapedName = spot.name.replace(/'/g, "\\'");
+            spots.forEach(spot => {
+                const marker = L.marker([spot.lat, spot.lon]);
+                marker.bindPopup(`<b>${spot.name}</b><br>${spot.type}`);
 
-                let popupContent = `
-                    <div style="min-width: 200px;">
-                        <h3 style="margin:0 0 5px 0;">${spot.name}</h3>
-                        <span style="background:#eee; padding:2px 5px; border-radius:3px; font-size:0.8em;">${spot.type}</span>
-                    </div>
-                `;
-
-                const marker = L.marker([spot.lat, spot.lon]).bindPopup(popupContent, {
-                    maxWidth: 300,
-                    autoPan: true,
-                    keepInView: true
+                // Trigger the dots when the popup opens
+                marker.on('popupopen', function() {
+                    showNearbyTransit(spot.lat, spot.lon);
                 });
 
                 markerLayer.addLayer(marker);
             });
 
-            const bounds = L.latLngBounds(data.map(d => [d.lat, d.lon]));
+            const bounds = L.latLngBounds(spots.map(s => [s.lat, s.lon]));
             map.fitBounds(bounds, { padding: [50, 50] });
         }
 
-        function fetchSummary(locationName, containerId) {
-            if (window.event) window.event.stopPropagation();
+        function showNearbyTransit(spotLat, spotLon) {
+            // 1. CLEAR previous transit dots immediately
+            transitLayer.clearLayers();
 
-            const activePopup = document.querySelector('.leaflet-popup-content');
-            const container = activePopup ? activePopup.querySelector(`#${containerId}`) : document.getElementById(containerId);
+            const spotLatLng = L.latLng(spotLat, spotLon);
+            const searchRadius = 1000; // 1km
 
-            if (!container) return;
+            allTransitStops.forEach(stop => {
+                const stopLatLng = L.latLng(stop.lat, stop.lon);
+                const distance = spotLatLng.distanceTo(stopLatLng); 
 
-            container.innerHTML = `<span style="font-size:0.8em; color:#666;">🤖 AI is analyzing reviews...</span>`;
-
-            if (map._popup) map._popup.update();
-
-            fetch(`/api/summarize/${encodeURIComponent(locationName)}`)
-                .then(response => response.json())
-                .then(data => {
-                    container.innerHTML = `
-                        <div style="background: #f8f9fa; border-left: 3px solid #007bff; padding: 8px; font-size: 0.85em; margin-top: 5px; color: #333;">
-                            <strong>AI Verdict:</strong> ${data.summary}
-                        </div>
-                    `;
-                    if (map._popup) map._popup.update();
-                })
-                .catch(err => {
-                    container.innerHTML = `<span style="color:red; font-size:0.8em;">Summary unavailable.</span>`;
-                    console.error(err);
-                });
-        }
-
-        const panel = document.getElementById('ranking-panel');
-        const toggleRankingButton = document.getElementById('toggle-ranking');
-        const closeRankingButton = document.getElementById('close-ranking');
-
-        toggleRankingButton.addEventListener('click', () => {
-            panel.classList.remove('hidden');
-        });
-
-        closeRankingButton.addEventListener('click', () => {
-            panel.classList.add('hidden');
-        });
-
-        function renderRankingList(data) {
-            const container = document.getElementById('ranking-list');
-            container.innerHTML = '';
-
-            data.forEach((spot, index) => {
-                const div = document.createElement('div');
-                div.className = 'ranking-item';
-
-                div.innerHTML = `
-                    <div class="rank-number">#${index + 1} — ${spot.name}</div>
-                    <div style="font-size: 0.85em; color: #555;">${spot.type}</div>
-                    ${spot.tip ? `<div style="font-size:0.8em; margin-top:5px;">"${spot.tip}"</div>` : ''}
-                `;
-
-                div.onclick = () => {
-                    map.setView([spot.lat, spot.lon], 17);
-                };
-
-                container.appendChild(div);
+                if (distance <= searchRadius) {
+                    // 2. Create a small dot instead of a marker
+                    L.circleMarker([stop.lat, stop.lon], {
+                        radius: 6,           // Size of the dot
+                        fillColor: "#ff3300", // Bright orange/red
+                        color: "#fff",       // White border
+                        weight: 2,           // Border thickness
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    })
+                    .bindPopup(`🚌 <b>Transit Stop</b><br>${stop.name}<br>${Math.round(distance)}m away`)
+                    .addTo(transitLayer); // Add to the transit-specific layer
+                }
             });
         }
+
+
+        document.getElementById('clear-filters').addEventListener('click', function(e) {
+            e.preventDefault();
+
+            // 1. Reset the form (unchecks all checkboxes)
+            document.getElementById('filter-form').reset();
+
+            // 2. Hide the type sections (since you have the toggleTypeVisibility function)
+            if (typeof toggleTypeVisibility === "function") {
+                toggleTypeVisibility();
+            }
+
+            // 3. Clear both marker layers from the map
+            markerLayer.clearLayers();
+            transitLayer.clearLayers();
+
+            // 4. Optional: Reset the map view to the original center
+            map.locate({setView: true, maxZoom: 16});
+        });
+
+    
     </script>
 </body>
 </html>
