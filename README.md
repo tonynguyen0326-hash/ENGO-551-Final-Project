@@ -54,7 +54,7 @@ python application.py
 - `GET /study-spot-suggestion` — Study spot suggestion interface
 - `GET /reset-password` — Reset password form
 
-## Request and Response Examplse
+## Request and Response Examples
 
 ### 1. Search Local Study Spots
 
