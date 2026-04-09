@@ -137,7 +137,7 @@
             return `
                 <div class="marker-popup">
                     <h3>${escapeHtml(place.name)}</h3>
-                    <p class="marker-rating">${escapeHtml(place.stars)} Vibe Match</p>
+                    ${place.reason ? `<p>${escapeHtml(place.reason)}</p>` : ''}
                     <p>${escapeHtml(place.address)}</p>
                     <p>${escapeHtml(place.type)}</p>
                     <p>${escapeHtml(place.distance)} m away</p>
@@ -181,7 +181,7 @@
                     <div class="top-three-rank">#${index + 1}</div>
                     <div class="top-three-content">
                         <h3>${escapeHtml(place.name)}</h3>
-                        <p class="top-three-stars">${escapeHtml(place.stars)} Vibe Match</p>
+                        <p>${escapeHtml(place.reason || 'Top match for this vibe.')}</p>
                         <p>${escapeHtml(place.address)}</p>
                         <p>${escapeHtml(place.distance)} m away</p>
                     </div>
@@ -212,6 +212,7 @@
                 }
 
                 allPlacesCache = data.all_places || [];
+                renderAllPlacesOnMap(data.top_ten || data.all_places);
                 renderTopThreeModal(data);
             } catch (error) {
                 alert('Could not load vibe spots right now.');

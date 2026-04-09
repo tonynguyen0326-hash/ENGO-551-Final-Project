@@ -3,11 +3,12 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+import json
+import re
 import requests
 from dotenv import load_dotenv
 from sqlalchemy import text
 from google import genai
-import requests
 
 load_dotenv()
 
@@ -302,82 +303,84 @@ def categories_to_label(categories):
     return text
 
 
-def vibe_score(place, vibe):
-    props = place.get('properties', {})
-    name = (props.get('name') or '').lower()
-    categories = props.get('categories') or []
-    category_blob = ' '.join(categories).lower()
-    distance = props.get('distance') or 999999
-
-    score = 0
-
-    for keyword in vibe['keywords']:
-        if keyword in name or keyword in category_blob:
-            score += 12
-
-    if 'internet_access' in category_blob:
-        score += 10
-
-    if 'education.library' in category_blob:
-        score += 14
-
-    if 'office.coworking' in category_blob:
-        score += 12
-
-    if 'catering.cafe' in category_blob:
-        score += 8
-
-    if distance < 500:
-        score += 12
-    elif distance < 1000:
-        score += 8
-    elif distance < 2000:
-        score += 4
-
-    return score
+def extract_json_from_text(text):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r'(\{.*\})', text, re.S)
+        if match:
+            return json.loads(match.group(1))
+        raise
 
 
-def vibe_stars(score):
-    if score >= 38:
-        return '★★★★★'
-    if score >= 30:
-        return '★★★★☆'
-    if score >= 22:
-        return '★★★☆☆'
-    if score >= 14:
-        return '★★☆☆☆'
-    return '★☆☆☆☆'
-
-
-def build_gemini_top_three(vibe_label, places):
+def build_gemini_top_three(vibe, places):
     if not places:
         return {
-            'title': f'Best 3 for {vibe_label}',
-            'summary': 'No strong vibe matches showed up yet. Try a bigger search radius or another vibe.'
+            'title': f'Best 3 for {vibe["label"]}',
+            'summary': 'No strong vibe matches showed up yet. Try a bigger search radius or another mood.',
+            'top_three': [],
+            'ranked_places': []
         }
 
-    top_three = places[:3]
-
-    place_lines = []
-    for i, place in enumerate(top_three, start=1):
-        place_lines.append(
-            f"{i}. {place['name']} | type: {place['type']} | address: {place['address']} | distance: {place['distance']}m | vibe score: {place['score']}"
-        )
+    # Build JSON-safe input for LLM
+    places_json = []
+    for place in places:
+        places_json.append({
+            "name": place.get("name", "Unknown"),
+            "address": place.get("address", "Address unavailable"),
+            "type": place.get("type", "Unknown"),
+            "distance": place.get("distance", 0),
+            "categories": place.get("categories", [])
+        })
 
     prompt = f"""
-You are a fun student study-spot assistant.
+You are an assistant that ranks study spots based on a selected vibe.
 
-The selected vibe is: {vibe_label}
+### STRICT RULES
+- You MUST return ONLY valid JSON.
+- You MUST NOT invent any attributes, categories, amenities, or details.
+- You MUST NOT add new fields.
+- You MUST NOT infer features not explicitly present in the input.
+- You MUST NOT create new places.
+- You MUST use ONLY the fields provided in the JSON array.
 
-Using only these 3 places, write:
-1. a short title
-2. a short 2-3 sentence summary
-3. a numbered top 3 list with one quick reason for each place
+### RANKING RULES
+Rank places using this exact priority order:
+1. Category match with preferred categories
+2. Keyword alignment with vibe keywords
+3. Distance (closer is better)
+4. Type relevance
 
-Keep it playful, student-friendly, and concise.
+### INPUT
+Vibe label: {vibe['label']}
+Vibe keywords: {vibe.get('keywords', [])}
+Preferred categories: {vibe.get('categories', '')}
+Preferred conditions: {vibe.get('conditions', '')}
 
-Places:
-{chr(10).join(place_lines)}
+Here is the JSON array of candidate places:
+{json.dumps(places_json, indent=2)}
+
+### OUTPUT FORMAT (STRICT)
+Return ONLY this JSON structure:
+
+{{
+  "title": "Best 3 for {vibe['label']}",
+  "summary": "string",
+  "top_three": [
+    {{
+      "name": "string",
+      "address": "string",
+      "type": "string",
+      "distance": number,
+      "reason": "string"
+    }}
+  ],
+  "ranked_places": [
+    "Place Name 1",
+    "Place Name 2",
+    "Place Name 3"
+  ]
+}}
 """
 
     try:
@@ -386,15 +389,48 @@ Places:
             contents=prompt
         )
 
+        parsed = extract_json_from_text(response.text.strip())
+
+        # Build full ranked list
+        ranked_names = parsed.get("ranked_places", [])
+        name_to_place = {p["name"]: p for p in places}
+        ranked_full = [name_to_place[n] for n in ranked_names if n in name_to_place]
+
+        parsed["top_three"] = parsed.get("top_three", [])[:3]
+        parsed["ranked_full"] = ranked_full
+
+        return parsed
+
+    except Exception as e:
+        print(f"Gemini error: {e}")
+        
+        import traceback
+        traceback.print_exc()
+
+
+        # Fallback: sort by distance
+        sorted_places = sorted(places, key=lambda p: p['distance'])
+        fallback_top_three = sorted_places[:3]
+        fallback_top_ten = sorted_places[:10]
+
         return {
-            'title': f'Best 3 for {vibe_label}',
-            'summary': response.text.strip()
+            "title": f"Best 3 for {vibe['label']} (Fallback)",
+            "summary": "AI ranking unavailable. Showing closest matches.",
+            "top_three": [
+                {
+                    "name": p["name"],
+                    "address": p["address"],
+                    "type": p["type"],
+                    "distance": p["distance"],
+                    "reason": "Closest match available (AI unavailable)"
+                }
+                for p in fallback_top_three
+            ],
+            "ranked_full": fallback_top_ten
         }
-    except Exception:
-        return {
-            'title': f'Best 3 for {vibe_label}',
-            'summary': 'These are the strongest vibe matches based on place type, internet access, and distance.'
-        }
+
+
+
 
 
 @app.route('/api/geoapify-vibe-spots')
@@ -446,8 +482,6 @@ def geoapify_vibe_spots():
             if coords[0] is None or coords[1] is None:
                 continue
 
-            score = vibe_score(feature, vibe)
-
             mapped = {
                 'name': props.get('name') or props.get('formatted') or 'Unnamed Place',
                 'address': props.get('formatted') or props.get('address_line1') or 'Address unavailable',
@@ -455,24 +489,25 @@ def geoapify_vibe_spots():
                 'distance': props.get('distance') or 0,
                 'lat': coords[1],
                 'lng': coords[0],
-                'score': score,
-                'stars': vibe_stars(score),
                 'categories': props.get('categories') or [],
                 'place_id': props.get('place_id') or ''
             }
 
             places.append(mapped)
 
-        places.sort(key=lambda p: (p['score'], -p['distance']), reverse=True)
+        gemini_box = build_gemini_top_three(vibe, places)
+        top_three = gemini_box.get('top_three', [])
 
-        gemini_box = build_gemini_top_three(vibe['label'], places)
+        gemini_box = build_gemini_top_three(vibe, places)
 
         return jsonify({
-            'vibe_label': vibe['label'],
-            'top_three': places[:3],
-            'all_places': places,
-            'gemini_box': gemini_box
+            "vibe_label": vibe["label"],
+            "top_three": gemini_box.get("top_three", []),
+            "top_ten": gemini_box.get("ranked_full", [])[:10],
+            "all_places": places,
+            "gemini_box": gemini_box
         })
+
 
     except requests.RequestException as e:
         return jsonify({'error': f'Geoapify request failed: {str(e)}'}), 500

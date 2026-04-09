@@ -4,13 +4,13 @@
 **Authors**: Sneha Dubey, Tony Nguyen, Antenaina Rakotoarison
 
 ## Description
-A web application that helps users discover study spots near their location based on specific filters or general vibe preferences. The project combines local geospatial data, crowd-sourced Reddit comments, campus buildings, transit stops, and external API searches to recommend libraries, cafes, and other study-friendly venues.
+A web application that helps users discover study spots near their location based on specific filters or general vibe preferences. The project combines local geospatial data, crowd-sourced Reddit comments, campus buildings, transit stops, and external API searches to recommend libraries, cafes, and other study-friendly venues. Features AI-powered recommendations using Gemini to intelligently rank and explain the best study spots for different moods.
 
 ## Features
 - User authentication with registration, login, logout, and password reset
 - Protected homepage and study spot suggestion pages
 - Endpoint to query local study spots with filters like quiet, Wi-Fi, outlets, campus/off-campus, and transit access
-- Endpoint to fetch additional places from Geoapify and score them by study vibe
+- AI-powered vibe-based place discovery using Geoapify and Gemini AI for intelligent ranking and recommendations
 - Interactive leaflet map that displays location markers
 - Auto-creates database tables on startup if they do not exist
 - Data import helper for CSV files in the `data/` folder
@@ -20,7 +20,7 @@ A web application that helps users discover study spots near their location base
 1. Install dependencies:
 
 ```bash
-pip install flask flask_sqlalchemy flask_login python-dotenv requests google-cloud-genai
+pip install flask flask_sqlalchemy flask_login python-dotenv requests google-genai
 ```
 
 2. Create a `.env` file with:
@@ -54,6 +54,7 @@ python application.py
 - `GET /study-spot-suggestion` — Study spot suggestion interface
 - `GET /reset-password` — Reset password form
 
+## Request and Response Examples
 ## Request and Response Examples
 
 ### 1. Search Local Study Spots
@@ -139,7 +140,7 @@ Query parameters:
   - `cozy_cafe`
   - `hanging_out`
 
-This endpoint calls Geoapify to find places matching a vibe profile, scores them by keyword/category/distance, and returns a top-three summary with Gemini-generated copy.
+This endpoint calls Geoapify to find places matching a vibe profile, then uses Gemini AI to intelligently rank and select the top 10 best matches based on the selected mood, place characteristics, and distance. Returns top 3 for the modal display and top 10 for map markers, along with AI-generated reasoning and summary.
 
 Example request:
 
@@ -162,13 +163,35 @@ Example response:
       "address": "123 College St",
       "type": "Catering Cafe",
       "distance": 450,
+      "reason": "Perfect cozy atmosphere with excellent Wi-Fi and comfortable seating for extended study sessions"
+    },
+    {
+      "name": "Campus Coffee House",
+      "address": "456 University Ave",
+      "type": "Catering Cafe Coffee Shop",
+      "distance": 320,
+      "reason": "Warm lighting and quiet corners make this ideal for focused work with good internet access"
+    },
+    {
+      "name": "Student Center Cafe",
+      "address": "789 Main St",
+      "type": "Catering Cafe",
+      "distance": 680,
+      "reason": "Relaxed vibe with plenty of outlets and a study-friendly environment near campus"
+    }
+  ],
+  "top_ten": [
+    {
+      "name": "The Common Ground Cafe",
+      "address": "123 College St",
+      "type": "Catering Cafe",
+      "distance": 450,
       "lat": 43.4738,
       "lng": -80.5412,
-      "score": 42,
-      "stars": "★★★★★",
       "categories": ["catering.cafe", "internet_access"],
       "place_id": "abc123"
-    }
+    },
+    // ... up to 10 AI-ranked places for map display
   ],
   "all_places": [
     {
@@ -178,15 +201,14 @@ Example response:
       "distance": 450,
       "lat": 43.4738,
       "lng": -80.5412,
-      "score": 42,
-      "stars": "★★★★★",
       "categories": ["catering.cafe", "internet_access"],
       "place_id": "abc123"
     }
+    // ... all places from Geoapify (up to 20)
   ],
   "gemini_box": {
     "title": "Best 3 for Cozy Cafe Vibes",
-    "summary": "These cozy cafes are perfect for reading, sipping warm drinks, and staying focused with strong Wi-Fi and relaxed atmosphere."
+    "summary": "These cozy cafes offer the perfect blend of comfort and productivity. Each spot provides a warm atmosphere with reliable Wi-Fi, making them ideal for both focused study sessions and relaxed reading time. The top picks are conveniently located and offer that special cafe ambiance you're looking for."
   }
 }
 ```
@@ -201,13 +223,16 @@ Example response:
 
 - The app requires a logged-in user for the protected routes and API endpoints.
 - The `/api/geoapify-vibe-spots` endpoint requires a valid `GEOAPIFY_API_KEY` in `.env`.
-- The Gemini integration uses `GEMINI_API_KEY` to generate the top-three summary box.
+- The AI-powered vibe ranking uses `GEMINI_API_KEY` to intelligently select and rank the top 10 study spots based on the selected mood, with fallback to distance-based ranking if API limits are reached.
+- The modal displays the top 3 AI-ranked recommendations with detailed reasoning, while the map shows the top 10 ranked places as markers when the modal is closed.
 
 ## Example User Flow
 
 1. Register a new user at `/register`
 2. Login at `/login`
 3. Visit `/study-spot-suggestion`
-4. Use the app UI or the API to query study spots with custom filters
+4. Select a study mood (e.g., "Cozy Cafe Vibes") to see AI-curated recommendations in a modal
+5. Close the modal to view the top 10 ranked study spots as markers on the interactive map
+6. Use the app UI or the API to query additional study spots with custom filters
 
-Enjoy exploring study spots with location-aware recommendations and vibe-based suggestions!
+Enjoy exploring study spots with location-aware recommendations and AI-powered vibe-based suggestions!
